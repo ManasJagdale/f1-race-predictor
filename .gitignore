@@ -1,0 +1,26 @@
+# --- Python environments ---
+venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# --- FastF1 cache (large, regenerable from API) ---
+.fastf1_cache/
+
+# --- Data (regenerable via fetch/build scripts) ---
+data/cache/
+data/processed/
+Some data to save/
+
+# --- Generated outputs ---
+output/
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Env / secrets, if you ever add an API key file ---
+.env

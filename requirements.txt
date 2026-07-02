@@ -1,0 +1,20 @@
+# F1 Race Outcome Predictor — dependencies
+# Tested on Python 3.11, 3.12, 3.13
+
+# Data fetching
+fastf1==3.8.3          # F1 telemetry, track features, weather
+requests==2.32.3       # Jolpica API calls
+
+# Data wrangling
+pandas==2.3.3
+numpy>=1.26.0
+pyarrow==24.0.0        # Parquet read/write for local cache
+
+# ML
+scikit-learn==1.8.0
+
+# Visualisation
+plotly==6.8.0
+
+# Optional: nicer terminal tables
+rich>=13.0.0
