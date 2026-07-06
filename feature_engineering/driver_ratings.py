@@ -17,10 +17,15 @@ Usage:
     # ratings is a dict keyed by (season, round, driverId) -> feature dict
 """
 
+import os
+import sys
 import math
 import datetime
 import pandas as pd
 from collections import defaultdict
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from config import ELO_INITIAL, ELO_K_BASE, FORM_WINDOW
 
 
@@ -246,9 +251,11 @@ def compute_recent_form(results_df: pd.DataFrame) -> pd.DataFrame:
 # We compute: teammate_delta = driver_position - teammate_position
 # (negative = driver finished AHEAD of teammate = good)
 #
-# We then compute a rolling average of this delta across all prior circuits
-# for each driver. This gives a driver skill index that accumulates over
-# time as we observe more head-to-head comparisons.
+# We then compute a rolling average of this delta over each driver's last
+# FORM_WINDOW head-to-head comparisons (same window as recent_form, added
+# after the Antonelli investigation showed the previous unweighted
+# full-career average permanently anchored old performance regardless of
+# recent form — see Final_Project_History.md, Session 3, section 7.7).
 #
 # Known limitation (from spec): doesn't work cleanly when teammates receive
 # unequal machinery (e.g. Red Bull preferential treatment for Verstappen).
@@ -265,8 +272,9 @@ def compute_teammate_delta(results_df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         DataFrame with columns:
             season, round, raceId, driverId, teammate_delta
-        teammate_delta = rolling mean of (own_pos - teammate_pos) across
-        all prior races. NaN when no prior teammate comparison exists.
+        teammate_delta = rolling mean of (own_pos - teammate_pos) over the
+        driver's last FORM_WINDOW comparisons (same window as recent_form).
+        NaN when no prior teammate comparison exists.
     """
     results_df = results_df.sort_values(["season", "round"]).reset_index(drop=True)
 
@@ -293,7 +301,8 @@ def compute_teammate_delta(results_df: pd.DataFrame) -> pd.DataFrame:
             history = driver_deltas[driver_id]
 
             if history:
-                rolling_delta = sum(history) / len(history)
+                window = history[-FORM_WINDOW:]
+                rolling_delta = sum(window) / len(window)
             else:
                 rolling_delta = float("nan")
 
@@ -375,12 +384,6 @@ def build_driver_ratings(results_df: pd.DataFrame) -> pd.DataFrame:
 # Quick sanity check (run this file directly to test)
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    import sys
-    import os
-
-    # Add project root to path so 'config' imports work
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
     print("driver_ratings.py — sanity check with synthetic data\n")
 
     # Minimal synthetic race results: 3 races, 4 drivers, 2 constructors
