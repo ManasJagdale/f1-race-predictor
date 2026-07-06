@@ -24,3 +24,8 @@ Thumbs.db
 
 # --- Env / secrets, if you ever add an API key file ---
 .env
+
+# --- Experiment-generated artifacts ---
+experiments/**/*.parquet
+experiments/**/*.joblib
+experiments/**/output_v2/
