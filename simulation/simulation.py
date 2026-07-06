@@ -162,19 +162,33 @@ def _apply_safety_car_compression(order: list, rng: np.random.Generator) -> list
 def _apply_pitstop_volatility(order: list, race_df: pd.DataFrame, rng: np.random.Generator) -> list:
     """
     Placeholder pit-stop effect: sample a stop count per driver from a
-    generic 1-3 stop distribution, and let higher counts add a small
-    chance of an extra position shuffle (undercut/overcut variance).
-    Real per-circuit historical strategy data would replace the sampling
-    distribution here.
+    generic 1-3 stop distribution. Each individual stop is treated as an
+    independent opportunity for a small track-position swing (undercut/
+    overcut gain or loss, pit-lane traffic, safety car timing luck) —
+    so drivers with more stops get more chances at a swing, rather than
+    only 3-stop strategies getting any variance at all.
+
+    NOTE: PIT_SWAP_PROB_PER_STOP below is a placeholder constant, same
+    status as SCORE_NOISE_STD_FRAC — not yet tuned against real data.
+    Real per-circuit historical strategy data (Jolpica /pitstops.json)
+    would replace both the stop-count distribution and this probability.
+
+    Bug history: previously this only checked `stop_counts[idx] >= 3`,
+    meaning 1- and 2-stop strategies (80% of the sampled distribution,
+    including the most common real-world strategy) got zero pit-related
+    position variance. Fixed to scale with actual stop count instead.
     """
+    PIT_SWAP_PROB_PER_STOP = 0.12  # chance any single stop causes a swing
+
     n = len(order)
     stop_counts = rng.choice([1, 2, 3], size=n, p=[0.25, 0.55, 0.20])
 
-    for idx, driver_pos in enumerate(order):
-        if stop_counts[idx] >= 3 and rng.random() < 0.15:
-            swap_idx = idx + rng.integers(-1, 2)
-            swap_idx = max(0, min(n - 1, swap_idx))
-            order[idx], order[swap_idx] = order[swap_idx], order[idx]
+    for idx in range(n):
+        for _ in range(stop_counts[idx]):
+            if rng.random() < PIT_SWAP_PROB_PER_STOP:
+                swap_idx = idx + rng.integers(-1, 2)
+                swap_idx = max(0, min(n - 1, swap_idx))
+                order[idx], order[swap_idx] = order[swap_idx], order[idx]
 
     return order
 

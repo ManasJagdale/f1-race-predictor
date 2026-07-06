@@ -7,12 +7,19 @@ One row per driver per race, all features present, ready for the ML model.
 Sources joined:
   1. driver_ratings.parquet  — elo_pre_race, recent_form, teammate_delta
   2. car_performance         — pace_delta_vs_pole, dnf_rate (computed live)
+  2b. driver_track_affinity  — track_affinity (computed live, NEW in v2 —
+                               residual-based, shrinkage-adjusted; see
+                               feature_engineering/driver_track_affinity.py)
   3. track_car_interaction   — straight_line_exposure, cornering_exposure
                                (pace_delta_vs_pole weighted by circuit's
                                sector throttle/braking character)
   4. track_features.parquet  — full_throttle_pct, avg_corner_speed,
                                lap_length_km, drs_zones, is_street_circuit
-  5. quali_results.parquet   — grid_position (strongest single predictor)
+  5. quali_results.parquet + race_results.parquet — grid_position (actual,
+                               penalty-adjusted starting grid — see
+                               fetch_jolpica.py for the fix that made this
+                               correct; falls back to qualifying
+                               classification only when 'grid' is missing)
   6. race_results.parquet    — target variable: finishing position
 
 Output: data/processed/master_features.parquet
@@ -33,6 +40,7 @@ from feature_engineering.driver_ratings import build_driver_ratings
 from feature_engineering.car_performance import build_car_performance
 from feature_engineering.track_features import load_track_features
 from feature_engineering.track_car_interaction import add_track_car_interaction
+from feature_engineering.driver_track_affinity import build_track_affinity
 from config import DRIVER_RATINGS_CACHE, TRACK_FEATURES_CACHE, PROCESSED_DIR
 
 MASTER_FEATURES_PATH = os.path.join(PROCESSED_DIR, "master_features.parquet")
@@ -84,6 +92,10 @@ def _load_track_features_safe() -> pd.DataFrame:
 #   pace_delta               — NaN for new constructors. Fill with median pace delta
 #                             (put them in the midfield, not assuming front or back).
 #   dnf_rate                 — NaN for new constructors. Fill with median DNF rate.
+#   track_affinity           — Should rarely be NaN (compute_track_affinity returns
+#                             a numeric value, shrunk toward 0, for every row). Fill
+#                             with 0.0 (no assumed circuit-specific effect) as a
+#                             defensive fallback only.
 #   straight_line_exposure   — NaN if pace_delta_vs_pole was NaN before this point.
 #   cornering_exposure         Fill with 0.0 — no exposure assumed by default.
 #                             (Circuit-level NaN from a missing circuitId match
@@ -103,6 +115,7 @@ def impute(df: pd.DataFrame) -> pd.DataFrame:
         "teammate_delta":         0.0,
         "pace_delta_vs_pole":     df["pace_delta_vs_pole"].median()     if "pace_delta_vs_pole"     in df else 1.0,
         "dnf_rate":               df["dnf_rate"].median()               if "dnf_rate"               in df else 0.1,
+        "track_affinity":         0.0,
         "straight_line_exposure": df["straight_line_exposure"].median() if "straight_line_exposure" in df else 0.0,
         "cornering_exposure":     df["cornering_exposure"].median()     if "cornering_exposure"     in df else 0.0,
         "full_throttle_pct":      df["full_throttle_pct"].median()      if "full_throttle_pct"      in df else 55.0,
@@ -158,6 +171,10 @@ def build_master_features() -> pd.DataFrame:
     print("\nComputing car performance features...")
     car_df = build_car_performance(quali_df, race_df)
 
+    # --- Driver-track affinity (residual-based, needs driver_df + car_df) ---
+    print("\nComputing driver-track affinity...")
+    affinity_df = build_track_affinity(race_df, driver_df, car_df)
+
     # --- Track features ---
     print("\nLoading track features...")
     track_df = _load_track_features_safe()
@@ -193,6 +210,17 @@ def build_master_features() -> pd.DataFrame:
         how="left",
     )
 
+    # --- Join 2b: Driver-track affinity ---
+    # Residual-based, shrinkage-adjusted (see feature_engineering/
+    # driver_track_affinity.py for full methodology and caveats).
+    # NEW in v2 — treat as a testable hypothesis, not an assumed win.
+    # Run through models/compare_feature_sets.py before trusting it.
+    master = master.merge(
+        affinity_df[merge_keys_driver + ["track_affinity"]],
+        on=merge_keys_driver,
+        how="left",
+    )
+
     # --- Track × car interaction features ---
     # Combines pace_delta_vs_pole with the upcoming circuit's sector
     # throttle/braking character (from the one-time circuit_profiler.py
@@ -220,13 +248,37 @@ def build_master_features() -> pd.DataFrame:
                     "drs_zones", "is_street_circuit", "wet_flag"]:
             master[col] = np.nan
 
-    # --- Join 4: Grid position from qualifying ---
+    # --- Join 4: Grid position ---
+    # Use the ACTUAL, penalty-adjusted starting grid (from race_df's
+    # actual_grid_position, sourced from results.json's 'grid' field) rather
+    # than the qualifying classification. These differ whenever a driver gets
+    # a grid penalty after qualifying (engine/gearbox/impeding penalties,
+    # DSQ from quali, etc.) — e.g. Gasly qualified 13th at the 2024 Azerbaijan
+    # GP but actually started P18 after a fuel-flow DSQ. Previously this join
+    # used quali_df's grid_position (pre-penalty), which silently mislabeled
+    # every penalized driver's starting position in training data.
+    #
+    # Fall back to the qualifying classification only for the rare rows where
+    # the results endpoint didn't provide a 'grid' value.
+    actual_grid = race_df[["season", "round", "raceId", "driverId", "actual_grid_position"]].copy()
+    master = master.merge(
+        actual_grid,
+        on=["season", "round", "raceId", "driverId"],
+        how="left",
+    )
     quali_grid = quali_df[["season", "round", "raceId", "driverId", "grid_position"]].copy()
+    quali_grid = quali_grid.rename(columns={"grid_position": "quali_grid_position"})
     master = master.merge(
         quali_grid,
         on=["season", "round", "raceId", "driverId"],
         how="left",
     )
+    master["grid_position"] = master["actual_grid_position"].fillna(master["quali_grid_position"])
+    fallback_count = master["actual_grid_position"].isna().sum()
+    if fallback_count > 0:
+        print(f"  ⚠ {fallback_count} rows missing actual_grid_position — "
+              f"fell back to qualifying classification for these.")
+    master = master.drop(columns=["actual_grid_position", "quali_grid_position"])
 
     print(f"\n  Master table shape before imputation: {master.shape}")
 
@@ -239,6 +291,8 @@ def build_master_features() -> pd.DataFrame:
         "season", "round", "raceId", "circuitId", "driverId", "constructorId",
         # Driver features
         "elo_pre_race", "recent_form", "teammate_delta",
+        # Driver-track affinity (NEW in v2 — residual-based, shrinkage-adjusted)
+        "track_affinity",
         # Car features
         "pace_delta_vs_pole", "dnf_rate",
         # Track × car interaction features

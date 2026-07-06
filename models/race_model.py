@@ -50,13 +50,10 @@ from itertools import combinations
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config import PROCESSED_DIR
+from config import PROCESSED_DIR, TRAIN_SEASONS, TEST_SEASONS
 
 MASTER_FEATURES_PATH = os.path.join(PROCESSED_DIR, "master_features.parquet")
 MODEL_PATH           = os.path.join(PROCESSED_DIR, "race_model.joblib")
-
-TRAIN_SEASONS = range(2020, 2023)
-TEST_SEASONS  = range(2023, 2027)
 
 # Same 8 seeds used in stability_check.py's diagnostic run, for continuity
 # with the numbers you already saw (5/8 beating naive, MAE 3.270-3.645).

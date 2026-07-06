@@ -65,6 +65,7 @@ CIRCUIT_TO_RACE_NAME = {
     "imola":           "Emilia Romagna Grand Prix",
     "monaco":          "Monaco Grand Prix",
     "catalunya":       "Spanish Grand Prix",
+    "madring":         "Spanish Grand Prix",   # new Madrid circuit (Jolpica circuitId is 'madring')
     "villeneuve":      "Canadian Grand Prix",
     "red_bull_ring":   "Austrian Grand Prix",
     "silverstone":     "British Grand Prix",

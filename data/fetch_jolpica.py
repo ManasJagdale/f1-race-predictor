@@ -26,10 +26,14 @@ Usage (from project root):
     python -m data.fetch_jolpica --refresh  # force re-fetch even if cached
 """
 
+import os
+import sys
 import time
 import argparse
 import requests
 import pandas as pd
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import (
     JOLPICA_BASE_URL,
@@ -140,6 +144,23 @@ def _parse_race_results(pages: list) -> list[dict]:
                 # We use it to distinguish DNFs from classified finishers
                 pos_text = result.get("positionText", "")
 
+                # 'grid' on the results endpoint is the driver's ACTUAL starting
+                # grid position, post-penalty (engine/gearbox/impeding penalties
+                # etc. applied after qualifying). This is distinct from the
+                # qualifying endpoint's 'position', which is the pre-penalty
+                # qualifying classification. Example: a driver can qualify P13
+                # but have a grid penalty and actually start P18 — the quali
+                # endpoint says 13, this 'grid' field says 18. We want the
+                # latter for anything that represents "where the race started."
+                # grid == "0" means the driver started from the pit lane
+                # (no real numbered grid slot) — treat as missing here rather
+                # than a literal 0, since 0 isn't a meaningful ordinal position.
+                grid_str = result.get("grid")
+                if grid_str is not None and grid_str.isdigit() and int(grid_str) > 0:
+                    actual_grid_position = int(grid_str)
+                else:
+                    actual_grid_position = None
+
                 rows.append({
                     "season":        season,
                     "round":         rnd,
@@ -152,6 +173,7 @@ def _parse_race_results(pages: list) -> list[dict]:
                     "positionOrder": i + 1,
                     "status":        result["status"],
                     "raceId":        circuit_id,
+                    "actual_grid_position": actual_grid_position,
                 })
     return rows
 
@@ -166,7 +188,12 @@ def fetch_race_results(seasons: list[int]) -> pd.DataFrame:
     Returns:
         DataFrame with columns:
             season, round, raceId, circuitId, driverId, constructorId,
-            position, positionOrder, status
+            position, positionOrder, status, actual_grid_position
+
+        actual_grid_position is the real, penalty-adjusted starting grid
+        (from the results endpoint's 'grid' field) — NOT the qualifying
+        classification. Use this instead of quali's grid_position wherever
+        "where did the race actually start" matters (i.e. as a model feature).
     """
     all_rows = []
 

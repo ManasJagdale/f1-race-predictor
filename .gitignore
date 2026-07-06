@@ -29,3 +29,5 @@ Thumbs.db
 experiments/**/*.parquet
 experiments/**/*.joblib
 experiments/**/output_v2/
+
+*.bak

@@ -25,8 +25,8 @@ for _dir in (CACHE_DIR, PROCESSED_DIR, OUTPUT_DIR, FASTF1_CACHE):
 FIRST_SEASON = 2018    # Earliest season to pull from Jolpica
 LAST_SEASON  = 2026    # Most recent completed season
 
-TRAIN_SEASONS = list(range(2018, 2024))   # 2018–2022 inclusive
-TEST_SEASONS  = list(range(2024, 2027))   # 2023–2024 inclusive
+TRAIN_SEASONS = list(range(2020, 2023))   # 2020-2022 inclusive
+TEST_SEASONS  = list(range(2023, 2027))   # 2023-2026 inclusive
 
 # ── Jolpica API ───────────────────────────────────────────────────────────────
 

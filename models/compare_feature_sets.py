@@ -35,7 +35,7 @@ from itertools import combinations
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config import PROCESSED_DIR
+from config import PROCESSED_DIR, TEST_SEASONS
 
 MASTER_FEATURES_PATH = os.path.join(PROCESSED_DIR, "master_features.parquet")
 
@@ -67,8 +67,6 @@ ZERO_IMPORTANCE_FEATS = [
 ]
 
 REDUCED_FEATURE_COLS = [c for c in ALL_FEATURE_COLS if c not in ZERO_IMPORTANCE_FEATS]
-
-TEST_SEASONS = range(2023, 2027)
 
 CONFIGS = [
     {"name": "A_baseline      (2020-2022, 14 feats)", "train_seasons": range(2020, 2023), "feature_cols": ALL_FEATURE_COLS},

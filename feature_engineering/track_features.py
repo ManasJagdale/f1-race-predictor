@@ -87,12 +87,12 @@ CIRCUIT_TO_EVENT: dict[str, str] = {
     "yas_marina":    "Abu Dhabi Grand Prix",
     "zandvoort":     "Dutch Grand Prix",
     # 2025/2026 additions
-    "madrid":        "Spanish Grand Prix",   # new Madrid circuit
+    "madring":       "Spanish Grand Prix",   # new Madrid circuit (Jolpica circuitId is 'madring', not 'madrid')
 }
 
 # Street circuits — different tyre behaviour, safety car rates, overtaking
 STREET_CIRCUITS: set[str] = {
-    "baku", "monaco", "marina_bay", "jeddah", "las_vegas", "villeneuve",
+    "baku", "monaco", "marina_bay", "jeddah", "las_vegas", "villeneuve", "madring",
 }
 
 

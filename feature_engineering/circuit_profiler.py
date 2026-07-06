@@ -222,6 +222,9 @@ def save_single_profile(profile: dict) -> None:
     updated = updated.sort_values("circuitId").reset_index(drop=True)
     updated.to_excel(CIRCUIT_PROFILES_PATH, index=False)
     print(f"\n✓ Saved/updated '{profile['circuitId']}' in {CIRCUIT_PROFILES_PATH}")
+
+
+def print_profile(profile: dict) -> None:
     """Pretty-print a single circuit profile to terminal for quick sanity check."""
     print(f"\n--- {profile['circuitId']} ({profile['season']}) ---")
     for i in range(1, 4):
